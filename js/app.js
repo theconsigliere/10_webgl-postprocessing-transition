@@ -4,6 +4,9 @@ import vertex from "./shader/vertex.glsl"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 import gui from "lil-gui"
 import gsap from "gsap"
+import img1 from "../img/img-1.jpg"
+import img2 from "../img/img-2.jpg"
+import img3 from "../img/img-3.jpg"
 
 export default class Sketch {
   constructor(options) {
@@ -15,16 +18,16 @@ export default class Sketch {
     this.renderer = new THREE.WebGLRenderer()
     this.renderer.setPixelRatio(window.devicePixelRatio)
     this.renderer.setSize(this.width, this.height)
-    this.renderer.setClearColor(0xeeeeee, 1)
+    this.renderer.setClearColor(0x000000, 1)
     this.renderer.outputColorSpace = THREE.SRGBColorSpace
 
     this.container.appendChild(this.renderer.domElement)
 
     this.camera = new THREE.PerspectiveCamera(
-      70,
+      60,
       window.innerWidth / window.innerHeight,
-      0.001,
-      1000
+      1,
+      3000
     )
 
     // var frustumSize = 10;
@@ -66,22 +69,13 @@ export default class Sketch {
 
   addObjects() {
     let that = this
-    this.material = new THREE.ShaderMaterial({
-      extensions: {
-        derivatives: "#extension GL_OES_standard_derivatives : enable",
-      },
-      side: THREE.DoubleSide,
-      uniforms: {
-        time: { type: "f", value: 0 },
-        resolution: { type: "v4", value: new THREE.Vector4() },
-        uvRate1: {
-          value: new THREE.Vector2(1, 1),
-        },
-      },
-      // wireframe: true,
-      // transparent: true,
-      vertexShader: vertex,
-      fragmentShader: fragment,
+
+    this.textures = [img1, img2, img3]
+    this.textures = this.textures.map((img) =>
+      new THREE.TextureLoader().load(img)
+    )
+    this.material = new THREE.MeshBasicMaterial({
+      map: this.textures[0],
     })
 
     this.geometry = new THREE.PlaneGeometry(1920, 1080, 1, 1)
@@ -104,7 +98,7 @@ export default class Sketch {
   render() {
     if (!this.isPlaying) return
     this.time += 0.05
-    this.material.uniforms.time.value = this.time
+    // this.material.uniforms.time.value = this.time
     requestAnimationFrame(this.render.bind(this))
     this.renderer.render(this.scene, this.camera)
   }
