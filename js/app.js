@@ -7,6 +7,8 @@ import gsap from "gsap"
 import img1 from "../img/img-1.jpg"
 import img2 from "../img/img-2.jpg"
 import img3 from "../img/img-3.jpg"
+import mask from "../img/mask.jpg"
+const createInputEvents = require("simple-input-events")
 
 export default class Sketch {
   constructor(options) {
@@ -23,12 +25,20 @@ export default class Sketch {
 
     this.container.appendChild(this.renderer.domElement)
 
+    // setting up the 2D Canvas
+
+    this.ctx = this.renderer.domElement.getContext("2d")
+    this.container.width = 1920
+    this.container.height = 1080
+
     this.camera = new THREE.PerspectiveCamera(
       60,
       window.innerWidth / window.innerHeight,
       1,
       3000
     )
+
+    this.event = createInputEvents(this.renderer.domElement)
 
     // var frustumSize = 10;
     // var aspect = window.innerWidth / window.innerHeight;
@@ -43,7 +53,33 @@ export default class Sketch {
     this.resize()
     this.render()
     this.setupResize()
+    this.events()
     // this.settings()
+  }
+
+  events() {
+    // create input events with a target element
+    // this.event.on('down', ({ position, event }) => {
+    //   // mousedown / touchstart
+    //   console.log(position); // [ x, y ]
+    //   console.log(event); // original mouse/touch event
+    // });
+    // this.event.on('up', ({ position, event }) => {
+    //   // mouseup / touchend
+    //   console.log(position); // [ x, y ]
+    //   console.log(event); // original mouse/touch event
+    // });
+    this.event.on("move", ({ position, event, inside, dragging }) => {
+      // mousemove / touchmove
+      // console.log(position); // [ x, y ]
+      // console.log(event); // original mouse/touch event
+      // console.log(inside); // true if the mouse/touch is inside the element
+      // console.log(dragging); // true if the pointer was down/dragging
+    })
+    // this.event.on('tap', ({ position, event }) => {
+    //   // mouse / finger was 'clicked'
+    //   console.log(position); // [ x, y ]
+    // });
   }
 
   settings() {
@@ -74,14 +110,31 @@ export default class Sketch {
     this.textures = this.textures.map((img) =>
       new THREE.TextureLoader().load(img)
     )
-    this.material = new THREE.MeshBasicMaterial({
-      map: this.textures[0],
-    })
-
+    this.maskTexture = new THREE.TextureLoader().load(mask)
     this.geometry = new THREE.PlaneGeometry(1920, 1080, 1, 1)
 
-    this.plane = new THREE.Mesh(this.geometry, this.material)
-    this.scene.add(this.plane)
+    let group = new THREE.Group()
+    this.scene.add(group)
+
+    for (let i = 0; i < 3; i++) {
+      let material = new THREE.MeshBasicMaterial({
+        map: this.textures[i],
+      })
+
+      if (i > 0) {
+        // second and third images will have the mask ( a whole inside)
+        material = new THREE.MeshBasicMaterial({
+          map: this.textures[i],
+          alphaMap: this.maskTexture,
+          transparent: true,
+        })
+      }
+
+      let mesh = new THREE.Mesh(this.geometry, material)
+      // layer them one behind the other
+      mesh.position.z = (i + 1) * 100
+      group.add(mesh)
+    }
   }
 
   stop() {
