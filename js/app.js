@@ -8,7 +8,15 @@ import img1 from "../img/img-1.jpg"
 import img2 from "../img/img-2.jpg"
 import img3 from "../img/img-3.jpg"
 import mask from "../img/mask.jpg"
-const createInputEvents = require("simple-input-events")
+import createInputEvents from "simple-input-events"
+
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js"
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js"
+import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js"
+// import { GlitchPass } from "three/addons/postprocessing/GlitchPass.js"
+// import { OutputPass } from "three/addons/postprocessing/OutputPass.js"
+
+import { CurtainShader } from "./postProcessingEffect"
 
 export default class Sketch {
   constructor(options) {
@@ -46,9 +54,12 @@ export default class Sketch {
     this.camera.position.set(0, 0, 900)
     this.controls = new OrbitControls(this.camera, this.renderer.domElement)
     this.time = 0
+    this.mouse = new THREE.Vector2()
+    this.mouseTarget = new THREE.Vector2()
 
     this.isPlaying = true
 
+    this.initPostprocessing()
     this.addObjects()
     this.resize()
     this.render()
@@ -58,28 +69,26 @@ export default class Sketch {
   }
 
   events() {
-    // create input events with a target element
-    // this.event.on('down', ({ position, event }) => {
-    //   // mousedown / touchstart
-    //   console.log(position); // [ x, y ]
-    //   console.log(event); // original mouse/touch event
-    // });
-    // this.event.on('up', ({ position, event }) => {
-    //   // mouseup / touchend
-    //   console.log(position); // [ x, y ]
-    //   console.log(event); // original mouse/touch event
-    // });
-    this.event.on("move", ({ position, event, inside, dragging }) => {
-      // mousemove / touchmove
-      // console.log(position); // [ x, y ]
-      // console.log(event); // original mouse/touch event
-      // console.log(inside); // true if the mouse/touch is inside the element
-      // console.log(dragging); // true if the pointer was down/dragging
+    this.event.on("move", ({ uv }) => {
+      // normalize uvs so they happen in the center
+      this.mouse.x = uv[0] - 0.5
+      this.mouse.y = uv[1] - 0.5
     })
-    // this.event.on('tap', ({ position, event }) => {
-    //   // mouse / finger was 'clicked'
-    //   console.log(position); // [ x, y ]
-    // });
+  }
+
+  initPostprocessing() {
+    this.composer = new EffectComposer(this.renderer)
+    const renderPass = new RenderPass(this.scene, this.camera)
+    this.composer.addPass(renderPass)
+
+    const effectPass = new ShaderPass(CurtainShader)
+    this.composer.addPass(effectPass)
+
+    // this.glitchPass = new GlitchPass()
+    // this.composer.addPass(this.glitchPass)
+
+    // this.outputPass = new OutputPass()
+    // this.composer.addPass(this.outputPass)
   }
 
   settings() {
@@ -98,6 +107,7 @@ export default class Sketch {
   resize() {
     this.width = this.container.offsetWidth
     this.height = this.container.offsetHeight
+    this.composer.setSize(this.width, this.height)
     this.renderer.setSize(this.width, this.height)
     this.camera.aspect = this.width / this.height
     this.camera.updateProjectionMatrix()
@@ -113,28 +123,37 @@ export default class Sketch {
     this.maskTexture = new THREE.TextureLoader().load(mask)
     this.geometry = new THREE.PlaneGeometry(1920, 1080, 1, 1)
 
-    let group = new THREE.Group()
-    this.scene.add(group)
+    this.groups = []
 
-    for (let i = 0; i < 3; i++) {
-      let material = new THREE.MeshBasicMaterial({
-        map: this.textures[i],
-      })
+    this.textures.forEach((texture, index) => {
+      let group = new THREE.Group()
+      this.scene.add(group)
 
-      if (i > 0) {
-        // second and third images will have the mask ( a whole inside)
-        material = new THREE.MeshBasicMaterial({
-          map: this.textures[i],
-          alphaMap: this.maskTexture,
-          transparent: true,
+      this.groups.push(group)
+
+      for (let i = 0; i < 3; i++) {
+        let material = new THREE.MeshBasicMaterial({
+          // map: this.textures[i],
+          map: texture,
         })
-      }
 
-      let mesh = new THREE.Mesh(this.geometry, material)
-      // layer them one behind the other
-      mesh.position.z = (i + 1) * 100
-      group.add(mesh)
-    }
+        if (i > 0) {
+          // second and third images will have the mask ( a whole inside)
+          material = new THREE.MeshBasicMaterial({
+            map: texture,
+            alphaMap: this.maskTexture,
+            transparent: true,
+          })
+        }
+
+        let mesh = new THREE.Mesh(this.geometry, material)
+        // layer them one behind the other
+        mesh.position.z = (i + 1) * 100
+        group.add(mesh)
+
+        group.position.x = index * 2500
+      }
+    })
   }
 
   stop() {
@@ -152,8 +171,19 @@ export default class Sketch {
     if (!this.isPlaying) return
     this.time += 0.05
     // this.material.uniforms.time.value = this.time
+
+    // create inertia effect
+
+    this.mouseTarget.lerp(this.mouse, 0.1)
+
+    this.groups.forEach((group, index) => {
+      group.rotation.x = -this.mouseTarget.y * 0.1
+      group.rotation.y = -this.mouseTarget.x * 0.1
+    })
+
     requestAnimationFrame(this.render.bind(this))
-    this.renderer.render(this.scene, this.camera)
+    // this.renderer.render(this.scene, this.camera)
+    this.composer.render()
   }
 }
 
